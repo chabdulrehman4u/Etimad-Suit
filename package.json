@@ -1,0 +1,29 @@
+{
+  "name": "etimad-suit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Etimad Suit - Integrated Multi-Tenant SaaS Platform for E-Commerce, Retail POS, Wholesale, and Inventory Management",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "backend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "test:backend": "npm run test --workspace=backend",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "keywords": [
+    "saas",
+    "multi-tenant",
+    "ecommerce",
+    "pos",
+    "inventory",
+    "wholesale",
+    "retail",
+    "courier"
+  ],
+  "author": "Etimad Suit Architecture Team",
+  "license": "UNLICENSED"
+}
