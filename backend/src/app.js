@@ -17,6 +17,8 @@ import logisticsRoutes from './modules/logistics/logisticsRoutes.js';
 import posRoutes from './modules/pos/posRoutes.js';
 import wholesaleRoutes from './modules/wholesale/wholesaleRoutes.js';
 import appsRoutes from './modules/apps/appsRoutes.js';
+import subscriptionsRoutes from './modules/subscriptions/subscriptionsRoutes.js';
+import platformAdminRoutes from './modules/platformAdmin/platformAdminRoutes.js';
 
 export const createApp = () => {
   const app = express();
@@ -81,6 +83,8 @@ export const createApp = () => {
   app.use('/api/v1/pos', posRoutes);
   app.use('/api/v1/wholesale', wholesaleRoutes);
   app.use('/api/v1/apps', appsRoutes);
+  app.use('/api/v1/subscriptions', subscriptionsRoutes);
+  app.use('/api/v1/platform-admin', platformAdminRoutes);
 
   // 6. 404 Handler
   app.use((req, res) => {

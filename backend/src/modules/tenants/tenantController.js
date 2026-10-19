@@ -311,3 +311,40 @@ export const addCustomDomain = async (req, res) => {
   }
 };
 
+/**
+ * 8. Verify Custom Domain
+ */
+export const verifyCustomDomain = async (req, res) => {
+  try {
+    const { domain } = req.params;
+    const cleanDomain = String(domain).toLowerCase().trim();
+
+    const domainEntry = req.tenant.customDomains.find(
+      (d) => d.domain.toLowerCase() === cleanDomain
+    );
+
+    if (!domainEntry) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'DOMAIN_NOT_FOUND', message: 'Domain not registered on this store.' },
+      });
+    }
+
+    domainEntry.isVerified = true;
+    domainEntry.verifiedAt = new Date();
+    await req.tenant.save();
+
+    return res.json({
+      success: true,
+      message: `Domain '${cleanDomain}' successfully verified.`,
+      data: domainEntry,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: { code: 'VERIFY_FAILED', message: err.message },
+    });
+  }
+};
+
+
