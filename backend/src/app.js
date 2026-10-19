@@ -8,6 +8,8 @@ import { config } from './config/index.js';
 import authRoutes from './modules/auth/authRoutes.js';
 import tenantRoutes from './modules/tenants/tenantRoutes.js';
 import productRoutes from './modules/products/productRoutes.js';
+import inventoryRoutes from './modules/inventory/inventoryRoutes.js';
+import orderRoutes from './modules/orders/orderRoutes.js';
 
 export const createApp = () => {
   const app = express();
@@ -63,6 +65,8 @@ export const createApp = () => {
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/tenants', tenantRoutes);
   app.use('/api/v1/products', productRoutes);
+  app.use('/api/v1/inventory', inventoryRoutes);
+  app.use('/api/v1/orders', orderRoutes);
 
   // 6. 404 Handler
   app.use((req, res) => {

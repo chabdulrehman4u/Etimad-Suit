@@ -87,6 +87,15 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    freeShipping: {
+      type: Boolean,
+      default: false,
+    },
+    deliveryCharges: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     images: [
       {
         url: { type: String, required: true },
