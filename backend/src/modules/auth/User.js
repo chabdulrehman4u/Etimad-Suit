@@ -50,6 +50,11 @@ const userSchema = new mongoose.Schema(
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
 
+  // If password is already an existing bcrypt hash (e.g. from database migration), preserve it
+  if (/^\$2[aby]\$\d{2}\$/.test(this.password)) {
+    return next();
+  }
+
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
