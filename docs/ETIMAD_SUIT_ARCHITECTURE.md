@@ -271,3 +271,4 @@ classDiagram
 | **State Management** | TanStack React Query v5 | Efficient server-state synchronization, optimistic mutations, caching |
 | **Validation** | Zod / Joi | Strict type-safe boundary validation on all ingress routes |
 | **Testing** | Vitest / Jest, Supertest | Fast execution of unit and multi-tenant isolation test suites |
+

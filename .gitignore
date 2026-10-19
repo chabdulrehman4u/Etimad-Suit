@@ -40,6 +40,8 @@ tmp/
 # Testing & Coverage
 coverage/
 .nyc_output/
+*.exe
+*.zip
 
 # IDE & OS files
 .DS_Store
@@ -50,3 +52,4 @@ Thumbs.db
 !.vscode/extensions.json
 *.sublime-project
 *.sublime-workspace
+

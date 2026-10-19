@@ -336,3 +336,4 @@ console.log(`Inventory Stock Worth: Rs. ${stockValuation[0]?.totalValuation?.toL
 1. The existing production systems and databases remain untouched throughout development and staging.
 2. If staging reconciliation shows any discrepancy exceeding 0%, the staging database is wiped, the migration script is updated, and the process is rerun from clean dumps.
 3. Live production DNS switch occurs only after 100% data reconciliation sign-off.
+

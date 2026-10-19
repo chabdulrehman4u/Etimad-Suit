@@ -152,3 +152,4 @@ router.post(
   posOrderController.createPosSale        // 5. Authoritative controller execution
 );
 ```
+

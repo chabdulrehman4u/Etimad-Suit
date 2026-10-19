@@ -128,3 +128,4 @@ The following files and components identified in the audit are marked for **imme
 3. `IMS/backend/models/Admin.js`: Merged into unified `User` model.
 4. `IMS/backend/models/Sale.js`: Superseded by canonical `Order` line items with `channel: 'retail'`.
 5. Duplicate LCS implementations in both repositories: Consolidated into `backend/src/modules/shipping/adapters/LcsAdapter.js`.
+
