@@ -312,3 +312,4 @@ describe('Dynamic Storefront, Colors, Homepage CMS, and Footer Suite', () => {
     expect(configB.body.data.footer.copyright).toBe('© 2026 Tech Haven');
   });
 });
+

@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { Order } from './Order.js';
 import { calculateOrderPricing } from './pricingService.js';
 import { batchDeductStock, restoreStock } from '../inventory/inventoryService.js';
+import { recordSaleFinancials, recordDoubleEntry } from '../finance/financeService.js';
 
 // Generate human-friendly tenant-scoped order numbers
 export const generateOrderNumber = async (tenantId, channel) => {
@@ -125,6 +126,17 @@ export const createCanonicalOrder = async ({
 
   await order.save();
 
+  // 6. Record Double-Entry Financials
+  await recordSaleFinancials({
+    tenantId,
+    orderNumber,
+    grandTotal: pricingResult.financials.grandTotal,
+    amountPaid,
+    cogsTotal: pricingResult.financials.cogsTotal,
+    paymentMethod,
+    actorId: createdById,
+  });
+
   return { order, isDuplicate: false };
 };
 
@@ -145,6 +157,7 @@ export const updateOrderStatus = async ({
   }
 
   const previousFulfillment = order.fulfillment.status;
+  const previousPayment = order.payment.status;
 
   // Stock Side-Effect: Order Cancellation restores physical stock
   if (newFulfillmentStatus === 'cancelled' && previousFulfillment !== 'cancelled') {
@@ -169,6 +182,21 @@ export const updateOrderStatus = async ({
       order.payment.paidAt = new Date();
       order.financials.amountPaid = order.financials.grandTotal;
       order.financials.outstandingBalance = 0;
+
+      if (previousPayment !== 'paid') {
+        const cashOrBank = order.payment.method === 'bank' || order.payment.method === 'card' ? 'bank' : 'cash';
+        await recordDoubleEntry({
+          tenantId,
+          type: 'CUSTOMER_PAYMENT',
+          debitAccount: cashOrBank,
+          creditAccount: 'accounts_receivable',
+          amount: order.financials.grandTotal,
+          referenceModel: 'Order',
+          referenceId: order.orderNumber,
+          description: `Payment collected for Order #${order.orderNumber}`,
+          actorId,
+        });
+      }
     }
   }
 

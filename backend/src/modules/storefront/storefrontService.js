@@ -197,3 +197,4 @@ export const getPublicStorefrontBundle = async (tenantId) => {
     customCss: theme.customCss,
   };
 };
+

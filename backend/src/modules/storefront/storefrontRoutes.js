@@ -32,3 +32,4 @@ router.use('/theme', merchantRouter);
 router.use('/features', merchantRouter);
 
 export default router;
+

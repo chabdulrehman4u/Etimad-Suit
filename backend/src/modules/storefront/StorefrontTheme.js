@@ -350,3 +350,4 @@ const storefrontThemeSchema = new mongoose.Schema(
 
 export const StorefrontTheme = mongoose.model('StorefrontTheme', storefrontThemeSchema);
 export default StorefrontTheme;
+
