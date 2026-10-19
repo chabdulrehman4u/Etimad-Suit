@@ -84,3 +84,4 @@ wholesaleCustomerSchema.index({ tenantId: 1, name: 1 });
 
 export const WholesaleCustomer = mongoose.model('WholesaleCustomer', wholesaleCustomerSchema);
 export default WholesaleCustomer;
+

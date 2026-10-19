@@ -16,6 +16,7 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   cookieName: 'etimad_token',
   cookieSecret: process.env.COOKIE_SECRET || 'dev_cookie_signing_secret_etimad_2026',
+  dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   
   // Allowed CORS Origins
   allowedOrigins: [

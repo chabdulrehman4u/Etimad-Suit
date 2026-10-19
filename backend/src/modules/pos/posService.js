@@ -251,3 +251,4 @@ export const createPosSale = async ({
     isDuplicate: orderResult.isDuplicate,
   };
 };
+

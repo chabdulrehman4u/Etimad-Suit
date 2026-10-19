@@ -267,3 +267,4 @@ export const recordCustomerKhataPayment = async ({
 
   return { customer, paymentEntry };
 };
+

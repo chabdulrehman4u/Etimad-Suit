@@ -373,3 +373,4 @@ describe('Retail POS & Wholesale Workflows Suite', () => {
     expect(scanB.status).toBe(404);
   });
 });
+

@@ -113,3 +113,4 @@ quotationSchema.index({ tenantId: 1, status: 1 });
 
 export const Quotation = mongoose.model('Quotation', quotationSchema);
 export default Quotation;
+

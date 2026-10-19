@@ -89,3 +89,4 @@ cashierShiftSchema.index({ tenantId: 1, registerId: 1, status: 1 });
 
 export const CashierShift = mongoose.model('CashierShift', cashierShiftSchema);
 export default CashierShift;
+

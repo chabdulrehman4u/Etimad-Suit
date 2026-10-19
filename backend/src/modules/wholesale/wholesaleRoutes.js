@@ -27,3 +27,4 @@ router.get('/quotations', requirePermission(PERMISSIONS.WHOLESALE_MANAGE), listQ
 router.post('/quotations/:id/convert', requirePermission(PERMISSIONS.WHOLESALE_MANAGE), convertQuotation);
 
 export default router;
+

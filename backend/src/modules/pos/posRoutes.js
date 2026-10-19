@@ -27,3 +27,4 @@ router.post('/shifts/:id/close', requirePermission(PERMISSIONS.ORDERS_CREATE_POS
 router.post('/sales', requirePermission(PERMISSIONS.ORDERS_CREATE_POS), executePosSale);
 
 export default router;
+
