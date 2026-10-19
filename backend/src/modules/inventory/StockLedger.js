@@ -87,3 +87,4 @@ stockLedgerSchema.index(
 
 export const StockLedger = mongoose.model('StockLedger', stockLedgerSchema);
 export default StockLedger;
+

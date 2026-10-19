@@ -310,3 +310,4 @@ export const adjustStock = async ({
 
   return { product, ledger, changed: true };
 };
+

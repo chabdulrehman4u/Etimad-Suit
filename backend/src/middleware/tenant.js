@@ -133,10 +133,20 @@ export const resolvePublicStorefrontTenant = async (req, res, next) => {
 
     let tenant = null;
 
-    // 1. Direct slug match from URL parameter (/api/v1/storefront/:tenantSlug)
-    if (tenantSlug) {
+    // 1. Direct tenant identification from header, query, or path parameter
+    const targetTenantId = req.headers['x-tenant-id'] || req.query.tenantId;
+    const targetSlug = tenantSlug || req.query.slug;
+
+    if (targetTenantId && mongoose.Types.ObjectId.isValid(targetTenantId)) {
       tenant = await Tenant.findOne({
-        slug: tenantSlug.toLowerCase().trim(),
+        _id: targetTenantId,
+        status: { $in: ['active', 'trial'] },
+      });
+    }
+
+    if (!tenant && targetSlug) {
+      tenant = await Tenant.findOne({
+        slug: targetSlug.toLowerCase().trim(),
         status: { $in: ['active', 'trial'] },
       });
     }

@@ -18,3 +18,4 @@ router.get('/ledger', requirePermission(PERMISSIONS.INVENTORY_READ), getLedger);
 router.post('/adjustments', requirePermission(PERMISSIONS.INVENTORY_ADJUST), executeAdjustment);
 
 export default router;
+

@@ -20,3 +20,4 @@ router.get('/:id', requirePermission(PERMISSIONS.ORDERS_READ), getOrderById);
 router.patch('/:id/status', updateStatus);
 
 export default router;
+

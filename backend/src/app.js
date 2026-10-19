@@ -10,6 +10,7 @@ import tenantRoutes from './modules/tenants/tenantRoutes.js';
 import productRoutes from './modules/products/productRoutes.js';
 import inventoryRoutes from './modules/inventory/inventoryRoutes.js';
 import orderRoutes from './modules/orders/orderRoutes.js';
+import storefrontRoutes from './modules/storefront/storefrontRoutes.js';
 
 export const createApp = () => {
   const app = express();
@@ -67,6 +68,7 @@ export const createApp = () => {
   app.use('/api/v1/products', productRoutes);
   app.use('/api/v1/inventory', inventoryRoutes);
   app.use('/api/v1/orders', orderRoutes);
+  app.use('/api/v1/storefront', storefrontRoutes);
 
   // 6. 404 Handler
   app.use((req, res) => {

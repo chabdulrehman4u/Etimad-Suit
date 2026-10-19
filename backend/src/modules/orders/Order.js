@@ -209,3 +209,4 @@ orderSchema.index({ tenantId: 1, channel: 1, createdAt: -1 });
 
 export const Order = mongoose.model('Order', orderSchema);
 export default Order;
+
