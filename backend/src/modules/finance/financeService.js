@@ -403,3 +403,4 @@ export const generateIncomeStatement = async (tenantId) => {
     netIncome,
   };
 };
+

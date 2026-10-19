@@ -25,3 +25,4 @@ router.get('/batches', requirePermission(PERMISSIONS.PURCHASES_MANAGE), listBatc
 router.post('/batches/:id/receive', requirePermission(PERMISSIONS.PURCHASES_MANAGE), receiveBatch);
 
 export default router;
+

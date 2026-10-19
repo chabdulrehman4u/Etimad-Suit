@@ -54,3 +54,4 @@ supplierSchema.index({ tenantId: 1, phone: 1 });
 
 export const Supplier = mongoose.model('Supplier', supplierSchema);
 export default Supplier;
+

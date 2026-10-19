@@ -31,3 +31,4 @@ router.get('/balance-sheet', requirePermission(PERMISSIONS.FINANCE_READ), getBal
 router.get('/income-statement', requirePermission(PERMISSIONS.FINANCE_READ), getIncomeStatement);
 
 export default router;
+

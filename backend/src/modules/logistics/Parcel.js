@@ -69,3 +69,4 @@ parcelSchema.index({ tenantId: 1, orderId: 1 });
 
 export const Parcel = mongoose.model('Parcel', parcelSchema);
 export default Parcel;
+

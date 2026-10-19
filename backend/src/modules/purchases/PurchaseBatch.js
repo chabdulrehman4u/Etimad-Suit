@@ -155,3 +155,4 @@ purchaseBatchSchema.index(
 
 export const PurchaseBatch = mongoose.model('PurchaseBatch', purchaseBatchSchema);
 export default PurchaseBatch;
+

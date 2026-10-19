@@ -404,3 +404,4 @@ describe('Purchases, Double-Entry Finance & Logistics Workflows Suite', () => {
     expect(ledgerB.body.data.length).toBe(0);
   });
 });
+

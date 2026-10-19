@@ -23,3 +23,4 @@ router.post('/returns/inspect', requirePermission(PERMISSIONS.RETURNS_INSPECT), 
 router.get('/returns', requirePermission(PERMISSIONS.RETURNS_INSPECT), listReturns);
 
 export default router;
+

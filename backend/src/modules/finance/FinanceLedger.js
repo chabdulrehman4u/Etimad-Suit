@@ -119,3 +119,4 @@ financeLedgerSchema.index({ tenantId: 1, referenceModel: 1, referenceId: 1 });
 
 export const FinanceLedger = mongoose.model('FinanceLedger', financeLedgerSchema);
 export default FinanceLedger;
+
