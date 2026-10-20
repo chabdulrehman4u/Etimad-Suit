@@ -43,7 +43,13 @@ const DEFAULT_SANDBOX_TENANTS = [
 
 export const App = () => {
   const [token, setToken] = useState(() => localStorage.getItem('etimad_superadmin_token') || '');
-  const [isDemo, setIsDemo] = useState(() => localStorage.getItem('etimad_admin_is_demo') === 'true');
+  const [isDemo, setIsDemo] = useState(() => {
+    const savedToken = localStorage.getItem('etimad_superadmin_token');
+    return (
+      localStorage.getItem('etimad_admin_is_demo') === 'true' ||
+      Boolean(savedToken && (savedToken.includes('demo') || savedToken.includes('mock')))
+    );
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState(null);
@@ -51,8 +57,16 @@ export const App = () => {
   const [loading, setLoading] = useState(false);
 
   // Admin Dashboard State
-  const [metrics, setMetrics] = useState(isDemo ? DEFAULT_SANDBOX_METRICS : null);
-  const [tenants, setTenants] = useState(isDemo ? DEFAULT_SANDBOX_TENANTS : []);
+  const [metrics, setMetrics] = useState(() => {
+    const savedToken = localStorage.getItem('etimad_superadmin_token');
+    const isSandbox = localStorage.getItem('etimad_admin_is_demo') === 'true' || Boolean(savedToken && (savedToken.includes('demo') || savedToken.includes('mock')));
+    return isSandbox ? DEFAULT_SANDBOX_METRICS : null;
+  });
+  const [tenants, setTenants] = useState(() => {
+    const savedToken = localStorage.getItem('etimad_superadmin_token');
+    const isSandbox = localStorage.getItem('etimad_admin_is_demo') === 'true' || Boolean(savedToken && (savedToken.includes('demo') || savedToken.includes('mock')));
+    return isSandbox ? DEFAULT_SANDBOX_TENANTS : [];
+  });
   const [plans, setPlans] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTenant, setSelectedTenant] = useState(null);

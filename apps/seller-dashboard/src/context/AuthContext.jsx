@@ -14,7 +14,11 @@ export const AuthProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : null;
   });
   const [isDemo, setIsDemo] = useState(() => {
-    return localStorage.getItem('etimad_is_demo') === 'true';
+    const savedToken = localStorage.getItem('etimad_token');
+    return (
+      localStorage.getItem('etimad_is_demo') === 'true' ||
+      Boolean(savedToken && (savedToken.includes('demo') || savedToken.includes('mock')))
+    );
   });
 
   const login = (authData, demoMode = false) => {

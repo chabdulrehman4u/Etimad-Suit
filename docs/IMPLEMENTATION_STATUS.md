@@ -188,3 +188,4 @@ VITE_API_URL=https://<your-backend-service-url>
    - **Ubuntu VPS / DigitalOcean / AWS** (via Docker or PM2)
 2. **MongoDB Connection**:
    Provide a MongoDB Atlas connection string (or set it up on your cloud provider) for the development/production database.
+
