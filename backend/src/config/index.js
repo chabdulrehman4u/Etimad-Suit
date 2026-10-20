@@ -18,18 +18,25 @@ export const config = {
   cookieSecret: process.env.COOKIE_SECRET || 'dev_cookie_signing_secret_etimad_2026',
   dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   
-  // Allowed CORS Origins
+  // Explicitly Approved CORS Origins (Dev & Production)
   allowedOrigins: [
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:3002',
     'http://localhost:3003',
+    'http://localhost:5000',
     'http://localhost:5173',
     'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3002',
+    'http://127.0.0.1:5000',
     'http://127.0.0.1:5173',
+    'https://etimad-suit.vercel.app',
+    'https://etimad-suit-mwjr.vercel.app',
+    'https://etimad-suit-platform-admin.vercel.app',
+    ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()) : []),
     ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map(s => s.trim()) : [])
   ].filter(Boolean)
 };
 
 export default config;
-

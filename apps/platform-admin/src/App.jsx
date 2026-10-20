@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { formatPKR } from '@etimad/ui';
+import { formatPKR, getApiBaseUrl } from '@etimad/ui';
 
-const DEFAULT_ADMIN_METRICS = {
+const DEFAULT_SANDBOX_METRICS = {
   tenants: { total: 42, active: 40, suspended: 2 },
   orders: { total: 18450, platformGmv: 42560000 },
   subscriptions: { activeSubscribers: 38, monthlyRecurringRevenue: 380000 },
   users: { total: 156 },
 };
 
-const DEFAULT_ADMIN_TENANTS = [
+const DEFAULT_SANDBOX_TENANTS = [
   {
     _id: 'ten-flagship-001',
     name: 'Etimad Mart (Flagship)',
@@ -43,21 +43,25 @@ const DEFAULT_ADMIN_TENANTS = [
 
 export const App = () => {
   const [token, setToken] = useState(() => localStorage.getItem('etimad_superadmin_token') || '');
-  const [email, setEmail] = useState('admin@etimadsuit.com');
-  const [password, setPassword] = useState('SuperAdmin2026!');
+  const [isDemo, setIsDemo] = useState(() => localStorage.getItem('etimad_admin_is_demo') === 'true');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState(null);
+  const [fetchError, setFetchError] = useState(null);
   const [loading, setLoading] = useState(false);
 
   // Admin Dashboard State
-  const [metrics, setMetrics] = useState(DEFAULT_ADMIN_METRICS);
-  const [tenants, setTenants] = useState(DEFAULT_ADMIN_TENANTS);
+  const [metrics, setMetrics] = useState(isDemo ? DEFAULT_SANDBOX_METRICS : null);
+  const [tenants, setTenants] = useState(isDemo ? DEFAULT_SANDBOX_TENANTS : []);
   const [plans, setPlans] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [actionMessage, setActionMessage] = useState(null);
 
   const adminFetch = async (url, options = {}) => {
-    return fetch(url, {
+    const apiBase = getApiBaseUrl();
+    const fullUrl = url.startsWith('http') ? url : `${apiBase}${url}`;
+    return fetch(fullUrl, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -67,9 +71,13 @@ export const App = () => {
     });
   };
 
-  const handleDemoAdminLogin = () => {
-    setToken('superadmin-demo-jwt-token');
-    localStorage.setItem('etimad_superadmin_token', 'superadmin-demo-jwt-token');
+  const handleLaunchSandbox = () => {
+    setToken('demo_sandbox_superadmin_token');
+    setIsDemo(true);
+    setMetrics(DEFAULT_SANDBOX_METRICS);
+    setTenants(DEFAULT_SANDBOX_TENANTS);
+    localStorage.setItem('etimad_superadmin_token', 'demo_sandbox_superadmin_token');
+    localStorage.setItem('etimad_admin_is_demo', 'true');
   };
 
   const handleLogin = async (e) => {
@@ -78,24 +86,33 @@ export const App = () => {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      }).catch(() => null);
+      const apiBase = getApiBaseUrl();
+      const endpoint = `${apiBase}/api/v1/auth/login`;
 
-      if (!res || !res.ok) {
-        // Fall back to demo login if backend is not started
-        handleDemoAdminLogin();
-        return;
+      let res;
+      try {
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+      } catch (netErr) {
+        throw new Error(`Unable to connect to backend API at ${apiBase || 'current host'}. Please verify backend is running.`);
       }
 
       const json = await res.json().catch(() => null);
-      if (!json || !json.success) throw new Error(json?.error?.message || 'Login failed');
-      if (!json.data.user?.isPlatformAdmin) throw new Error('Account does not have Platform Super Admin privileges');
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || `Authentication failed with status ${res.status}`);
+      }
+
+      if (!json.data.user?.isPlatformAdmin) {
+        throw new Error('Access Denied: Account does not have Platform Super-Admin privileges');
+      }
 
       setToken(json.data.token);
+      setIsDemo(false);
       localStorage.setItem('etimad_superadmin_token', json.data.token);
+      localStorage.setItem('etimad_admin_is_demo', 'false');
     } catch (err) {
       setAuthError(err.message);
     } finally {
@@ -105,57 +122,73 @@ export const App = () => {
 
   const handleLogout = () => {
     setToken('');
+    setIsDemo(false);
     localStorage.removeItem('etimad_superadmin_token');
+    localStorage.removeItem('etimad_admin_is_demo');
   };
 
   const fetchDashboardData = async () => {
-    if (!token) return;
+    if (!token || isDemo) return;
+
     try {
+      setFetchError(null);
       const [metricsRes, tenantsRes, plansRes] = await Promise.all([
-        adminFetch('/api/v1/platform-admin/metrics').catch(() => null),
-        adminFetch(`/api/v1/platform-admin/tenants?search=${encodeURIComponent(searchTerm)}`).catch(() => null),
-        adminFetch('/api/v1/platform-admin/plans').catch(() => null),
+        adminFetch('/api/v1/platform-admin/metrics'),
+        adminFetch(`/api/v1/platform-admin/tenants?search=${encodeURIComponent(searchTerm)}`),
+        adminFetch('/api/v1/platform-admin/plans'),
       ]);
 
-      if (metricsRes && metricsRes.ok) {
-        const metricsJson = await metricsRes.json().catch(() => null);
-        if (metricsJson && metricsJson.success) setMetrics(metricsJson.data);
-      }
-      if (tenantsRes && tenantsRes.ok) {
-        const tenantsJson = await tenantsRes.json().catch(() => null);
-        if (tenantsJson && tenantsJson.success) setTenants(tenantsJson.data || []);
-      }
-      if (plansRes && plansRes.ok) {
-        const plansJson = await plansRes.json().catch(() => null);
-        if (plansJson && plansJson.success) setPlans(plansJson.data || []);
+      const metricsJson = await metricsRes.json().catch(() => null);
+      const tenantsJson = await tenantsRes.json().catch(() => null);
+      const plansJson = await plansRes.json().catch(() => null);
+
+      if (metricsJson?.success) setMetrics(metricsJson.data);
+      if (tenantsJson?.success) setTenants(tenantsJson.data || []);
+      if (plansJson?.success) setPlans(plansJson.data || []);
+
+      if (!metricsRes.ok || !tenantsRes.ok) {
+        throw new Error('Failed to load full admin telemetry from backend');
       }
     } catch (err) {
-      console.warn('Failed to load live admin data, using demo state:', err);
+      setFetchError(`Platform Admin Error: ${err.message}. Please verify backend connectivity.`);
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
-  }, [token, searchTerm]);
+  }, [token, searchTerm, isDemo]);
 
   // Suspend / Reactivate Tenant
   const handleToggleTenantStatus = async (tenantId, currentStatus) => {
     const newStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
     
-    // Apply locally
-    setTenants((prev) =>
-      prev.map((t) => (t._id === tenantId ? { ...t, status: newStatus } : t))
-    );
-    setActionMessage(`Tenant status updated to ${newStatus}.`);
+    if (isDemo) {
+      setTenants((prev) =>
+        prev.map((t) => (t._id === tenantId ? { ...t, status: newStatus } : t))
+      );
+      setActionMessage(`Tenant status updated to ${newStatus} (Sandbox).`);
+      return;
+    }
 
     try {
-      await adminFetch(`/api/v1/platform-admin/tenants/${tenantId}/status`, {
+      const res = await adminFetch(`/api/v1/platform-admin/tenants/${tenantId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({
           status: newStatus,
           reason: newStatus === 'suspended' ? 'Administrative policy enforcement' : 'Account reactivated',
         }),
-      }).catch(() => null);
+      });
+
+      const json = await res.json().catch(() => null);
+      if (json && json.success) {
+        setActionMessage(`Tenant status updated to ${newStatus}.`);
+        fetchDashboardData();
+        if (selectedTenant && selectedTenant.tenant._id === tenantId) {
+          setSelectedTenant(null);
+        }
+      } else {
+        setActionMessage(`Failed to update status: ${json?.error?.message}`);
+      }
     } catch (err) {
       console.error('Failed to update status on server:', err);
     }
@@ -163,13 +196,26 @@ export const App = () => {
 
   // Inspect Tenant Details
   const handleInspectTenant = async (tenantId) => {
-    const local = tenants.find((t) => t._id === tenantId);
-    if (local) {
-      setSelectedTenant({
-        tenant: local,
-        usage: { products: { used: 145 }, staff: { used: 4 } },
-        financialOverview: { totalOrders: 512, lifetimeGmv: 1240000 },
-      });
+    if (isDemo) {
+      const local = tenants.find((t) => t._id === tenantId);
+      if (local) {
+        setSelectedTenant({
+          tenant: local,
+          usage: { products: { used: 145 }, staff: { used: 4 } },
+          financialOverview: { totalOrders: 512, lifetimeGmv: 1240000 },
+        });
+      }
+      return;
+    }
+
+    try {
+      const res = await adminFetch(`/api/v1/platform-admin/tenants/${tenantId}`);
+      const json = await res.json().catch(() => null);
+      if (json && json.success) {
+        setSelectedTenant(json.data);
+      }
+    } catch (err) {
+      console.error('Failed to load tenant details:', err);
     }
   };
 
@@ -186,32 +232,18 @@ export const App = () => {
           </div>
 
           {authError && (
-            <div className="p-3 bg-rose-950/50 border border-rose-800 rounded-xl text-rose-300 text-xs font-semibold mb-4">
-              {authError}
+            <div className="p-3 bg-rose-950/50 border border-rose-800 rounded-xl text-rose-300 text-xs font-semibold mb-4 space-y-1">
+              <p className="font-bold flex items-center space-x-1">
+                <span>⚠️</span>
+                <span>Access Denied</span>
+              </p>
+              <p className="text-[11px] leading-relaxed font-normal">{authError}</p>
             </div>
           )}
 
-          {/* Quick Demo Login */}
-          <div className="mb-5 p-3.5 bg-sky-950/50 border border-sky-800 rounded-2xl text-center">
-            <p className="text-xs text-sky-300 font-semibold mb-2">Platform Super-Admin Preview</p>
-            <button
-              type="button"
-              onClick={handleDemoAdminLogin}
-              className="w-full py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white rounded-xl text-xs font-extrabold shadow-md transition-all active:scale-[0.99] flex items-center justify-center space-x-1.5"
-            >
-              <span>⚡ Instant Super-Admin Access</span>
-            </button>
-          </div>
-
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-slate-800"></div>
-            <span className="flex-shrink mx-3 text-slate-500 text-[11px] uppercase font-bold tracking-wider">or sign in with password</span>
-            <div className="flex-grow border-t border-slate-800"></div>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4 mt-3">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Super-Admin Email</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Super-Admin Email *</label>
               <input
                 type="email"
                 required
@@ -223,7 +255,7 @@ export const App = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">Secure Password</label>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Password *</label>
               <input
                 type="password"
                 required
@@ -237,11 +269,23 @@ export const App = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
+              className="w-full py-3 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
             >
-              {loading ? 'Authenticating...' : 'Enter Admin Console'}
+              {loading ? 'Authenticating with Authoritative Backend...' : 'Authenticate Super-Admin'}
             </button>
           </form>
+
+          {/* Clearly Labeled Sandbox Preview Option */}
+          <div className="mt-5 p-3.5 bg-amber-950/40 border border-amber-800/60 rounded-2xl text-center">
+            <p className="text-[11px] text-amber-300 font-semibold mb-1.5">Exploring Admin Telemetry?</p>
+            <button
+              type="button"
+              onClick={handleLaunchSandbox}
+              className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center space-x-1"
+            >
+              <span>⚡ Preview Sandbox Telemetry (Simulation)</span>
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -249,6 +293,21 @@ export const App = () => {
 
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
+      {/* Explicit Sandbox Warning Banner */}
+      {isDemo && (
+        <div className="bg-amber-500 text-slate-950 px-4 py-1.5 text-xs font-bold flex items-center justify-between shadow-sm z-50">
+          <div className="flex items-center space-x-2">
+            <span>⚠️</span>
+            <span>
+              <strong>OFFLINE DEMO SANDBOX:</strong> Displaying simulated platform KPIs and tenants. Changes will NOT affect production.
+            </span>
+          </div>
+          <span className="text-[10px] bg-slate-950/20 px-2 py-0.5 rounded uppercase tracking-wider font-mono">
+            Admin Sandbox
+          </span>
+        </div>
+      )}
+
       {/* Top Navigation */}
       <header className="h-16 border-b border-slate-800 px-6 flex items-center justify-between bg-slate-900/60 backdrop-blur">
         <div className="flex items-center space-x-3">
@@ -271,6 +330,15 @@ export const App = () => {
 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {fetchError && (
+          <div className="p-4 bg-rose-950/60 border border-rose-800 rounded-2xl flex items-center justify-between text-xs text-rose-300">
+            <span>⚠️ {fetchError}</span>
+            <button onClick={fetchDashboardData} className="px-3 py-1 bg-rose-700 text-white rounded-lg font-bold">
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* KPI Metrics Strip */}
         {metrics && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

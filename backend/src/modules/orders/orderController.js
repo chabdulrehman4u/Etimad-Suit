@@ -157,12 +157,21 @@ export const getOrderById = async (req, res) => {
 export const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fulfillmentStatus, paymentStatus, note } = req.body || {};
+    const { fulfillmentStatus, paymentStatus, status, note } = req.body || {};
+
+    const targetFulfillment =
+      fulfillmentStatus ||
+      (status &&
+      ['pending', 'confirmed', 'processing', 'packed', 'dispatched', 'delivered', 'returned', 'cancelled'].includes(
+        status
+      )
+        ? status
+        : undefined);
 
     const updated = await updateOrderStatus({
       tenantId: req.tenantId,
       orderId: id,
-      newFulfillmentStatus: fulfillmentStatus,
+      newFulfillmentStatus: targetFulfillment,
       newPaymentStatus: paymentStatus,
       actorId: req.user?._id,
       note,

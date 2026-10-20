@@ -30,16 +30,21 @@ export const createApp = () => {
     })
   );
 
-  // 2. Cross-Origin Resource Sharing
+  // 2. Cross-Origin Resource Sharing (Strictly Enforced)
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || config.allowedOrigins.includes(origin) || config.env === 'test') {
+        // Allow requests with no origin (curl, mobile, server-to-server) or in test environment
+        if (!origin || config.env === 'test') {
+          return callback(null, true);
+        }
+        if (config.allowedOrigins.includes(origin)) {
           return callback(null, true);
         }
         try {
           const { hostname } = new URL(origin);
           if (
+            hostname === config.platformDomain ||
             hostname.endsWith(`.${config.platformDomain}`) ||
             hostname === 'localhost' ||
             hostname === '127.0.0.1'
@@ -47,7 +52,7 @@ export const createApp = () => {
             return callback(null, true);
           }
         } catch {}
-        return callback(null, true); // Allow during dev/staging
+        return callback(new Error(`Origin ${origin} is not allowed by Etimad Suit CORS policy.`));
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

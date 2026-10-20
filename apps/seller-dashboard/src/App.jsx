@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { getApiBaseUrl } from '@etimad/ui';
 import { Sidebar } from './components/Sidebar';
 import { PosTerminal } from './components/PosTerminal';
 import { OrdersManager } from './components/OrdersManager';
@@ -13,8 +14,8 @@ const AuthScreen = () => {
   const { login } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
   const [formData, setFormData] = useState({
-    email: 'owner@etimadmart.com',
-    password: 'Password123!',
+    email: '',
+    password: '',
     tenantName: '',
     ownerName: '',
     phone: '',
@@ -22,23 +23,27 @@ const AuthScreen = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleDemoLogin = () => {
-    login({
-      token: 'demo_jwt_token_etimad_suit_active_session',
-      user: {
-        _id: 'usr-owner-001',
-        name: 'Ch Abdul Rehman (Owner)',
-        email: 'owner@etimadmart.com',
-        role: 'TENANT_ADMIN',
+  // Explicit Sandbox Mode (Strictly separated from real authentication)
+  const handleLaunchSandbox = () => {
+    login(
+      {
+        token: 'demo_sandbox_token_etimad_simulated_session',
+        user: {
+          _id: 'usr-sandbox-001',
+          name: 'Demo Merchant (Sandbox)',
+          email: 'demo@sandbox.local',
+          role: 'TENANT_ADMIN',
+        },
+        tenant: {
+          _id: 'ten-sandbox-001',
+          name: 'Demo Store Sandbox',
+          slug: 'demo-sandbox',
+          currency: 'PKR',
+          plan: 'GROWTH_TIER',
+        },
       },
-      tenant: {
-        _id: 'ten-flagship-001',
-        name: 'Etimad Mart',
-        slug: 'etimadmart',
-        currency: 'PKR',
-        plan: 'GROWTH_TIER',
-      },
-    });
+      true // Explicit demoMode flag
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -47,7 +52,11 @@ const AuthScreen = () => {
     setLoading(true);
 
     try {
-      const endpoint = isRegister ? '/api/v1/auth/register-tenant' : '/api/v1/auth/login';
+      const apiBase = getApiBaseUrl();
+      const endpoint = isRegister
+        ? `${apiBase}/api/v1/auth/register-tenant`
+        : `${apiBase}/api/v1/auth/login`;
+
       const body = isRegister
         ? {
             tenantName: formData.tenantName,
@@ -61,25 +70,30 @@ const AuthScreen = () => {
             password: formData.password,
           };
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }).catch(() => null);
-
-      if (!res || !res.ok) {
-        // Fall back to demo login if backend is not started
-        console.warn('Backend server not detected, using demo merchant credentials');
-        handleDemoLogin();
-        return;
+      let res;
+      try {
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      } catch (networkErr) {
+        throw new Error(
+          `Unable to reach the Etimad Suit backend API at ${apiBase || 'current host'}. Please verify the backend server is running and accessible.`
+        );
       }
 
       const json = await res.json().catch(() => null);
-      if (!json || !json.success) {
-        throw new Error(json?.error?.message || 'Authentication failed');
+
+      if (!res.ok || !json?.success) {
+        throw new Error(
+          json?.error?.message ||
+            `Authentication failed with status ${res.status}. Please check your credentials.`
+        );
       }
 
-      login(json.data);
+      // Genuine backend authentication succeeded
+      login(json.data, false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -95,36 +109,22 @@ const AuthScreen = () => {
             ES
           </div>
           <h2 className="text-2xl font-black text-slate-900">
-            {isRegister ? 'Start Your Business' : 'Etimad Suit Portal'}
+            {isRegister ? 'Register New Merchant' : 'Etimad Suit Portal'}
           </h2>
           <p className="text-xs text-slate-500 mt-1">Authoritative Multi-Tenant Business Management</p>
         </div>
 
         {error && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold mb-4">
-            {error}
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold mb-4 space-y-1">
+            <p className="font-bold flex items-center space-x-1">
+              <span>⚠️</span>
+              <span>Connection / Auth Error</span>
+            </p>
+            <p className="font-normal text-[11px] leading-relaxed">{error}</p>
           </div>
         )}
 
-        {/* Quick Demo Login Pill */}
-        <div className="mb-5 p-3.5 bg-sky-50 border border-sky-200 rounded-2xl text-center">
-          <p className="text-xs text-sky-800 font-semibold mb-2">Want instant access to the POS & CMS?</p>
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-extrabold shadow-md transition-all active:scale-[0.99] flex items-center justify-center space-x-1.5"
-          >
-            <span>⚡ Instant One-Click Demo Login</span>
-          </button>
-        </div>
-
-        <div className="relative flex py-2 items-center">
-          <div className="flex-grow border-t border-slate-200"></div>
-          <span className="flex-shrink mx-3 text-slate-400 text-[11px] uppercase font-bold tracking-wider">or sign in with password</span>
-          <div className="flex-grow border-t border-slate-200"></div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-3 mt-3">
+        <form onSubmit={handleSubmit} className="space-y-3">
           {isRegister && (
             <>
               <div>
@@ -169,7 +169,7 @@ const AuthScreen = () => {
             <input
               type="email"
               required
-              placeholder="owner@etimadmart.com"
+              placeholder="owner@mybrand.pk"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none"
@@ -194,12 +194,12 @@ const AuthScreen = () => {
               disabled={loading}
               className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md transition-all disabled:opacity-50"
             >
-              {loading ? 'Please wait...' : (isRegister ? 'Create Store Account' : 'Sign In')}
+              {loading ? 'Verifying with Authoritative Backend...' : (isRegister ? 'Register Merchant Account' : 'Sign In with Authoritative Backend')}
             </button>
           </div>
         </form>
 
-        <div className="mt-5 text-center text-xs text-slate-500 border-t border-slate-100 pt-4">
+        <div className="mt-4 text-center text-xs text-slate-500 border-t border-slate-100 pt-3">
           {isRegister ? (
             <p>
               Already registered?{' '}
@@ -216,13 +216,30 @@ const AuthScreen = () => {
             </p>
           )}
         </div>
+
+        {/* Clearly Separated Offline Sandbox Option */}
+        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-center">
+          <p className="text-[11px] text-amber-800 font-semibold mb-1.5">
+            Testing without a live database?
+          </p>
+          <button
+            type="button"
+            onClick={handleLaunchSandbox}
+            className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center space-x-1"
+          >
+            <span>⚡ Explore Offline Demo Sandbox</span>
+          </button>
+          <p className="text-[10px] text-amber-700/80 mt-1">
+            Clearly labeled simulation. Will not affect production data.
+          </p>
+        </div>
       </div>
     </div>
   );
 };
 
 const DashboardContent = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isDemo } = useAuth();
   const [activeTab, setActiveTab] = useState('pos');
 
   if (!isAuthenticated) {
@@ -230,17 +247,34 @@ const DashboardContent = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100 font-sans">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {activeTab === 'pos' && <PosTerminal />}
-        {activeTab === 'orders' && <OrdersManager />}
-        {activeTab === 'products' && <ProductsManager />}
-        {activeTab === 'theme' && <ThemeCustomizer />}
-        {activeTab === 'finance' && <FinanceOverview />}
-        {activeTab === 'apps' && <AppsManager />}
-        {activeTab === 'billing' && <BillingManager />}
-      </main>
+    <div className="flex h-screen overflow-hidden bg-slate-100 font-sans flex-col">
+      {/* Explicit Sandbox Notification Banner */}
+      {isDemo && (
+        <div className="bg-amber-500 text-slate-950 px-4 py-1.5 text-xs font-bold flex items-center justify-between shadow-sm z-50">
+          <div className="flex items-center space-x-2">
+            <span>⚠️</span>
+            <span>
+              <strong>OFFLINE DEMO SANDBOX MODE:</strong> You are viewing an offline simulation. Changes are stored locally and will NOT sync to the live database.
+            </span>
+          </div>
+          <span className="text-[10px] bg-slate-950/20 px-2 py-0.5 rounded uppercase tracking-wider font-mono">
+            Sandbox Environment
+          </span>
+        </div>
+      )}
+
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {activeTab === 'pos' && <PosTerminal />}
+          {activeTab === 'orders' && <OrdersManager />}
+          {activeTab === 'products' && <ProductsManager />}
+          {activeTab === 'theme' && <ThemeCustomizer />}
+          {activeTab === 'finance' && <FinanceOverview />}
+          {activeTab === 'apps' && <AppsManager />}
+          {activeTab === 'billing' && <BillingManager />}
+        </main>
+      </div>
     </div>
   );
 };

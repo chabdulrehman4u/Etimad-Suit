@@ -50,3 +50,20 @@ export const injectTenantThemeVariables = (branding) => {
   if (branding.fontBody) root.style.setProperty('--font-body', branding.fontBody);
 };
 
+/**
+ * Resolves the backend API base URL from Vite environment variables or defaults to relative path.
+ * Supports VITE_API_BASE_URL, VITE_API_URL, or empty string (local dev proxy / same origin).
+ */
+export const getApiBaseUrl = () => {
+  if (typeof window !== 'undefined' && window.__ETIMAD_API_URL__) {
+    return window.__ETIMAD_API_URL__;
+  }
+  try {
+    const envUrl = (typeof import.meta !== 'undefined' && import.meta.env)
+      ? (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '')
+      : '';
+    return envUrl.replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
+};

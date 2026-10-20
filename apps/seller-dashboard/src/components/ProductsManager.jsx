@@ -3,11 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import { formatPKR } from '@etimad/ui';
 
 export const ProductsManager = () => {
-  const { authFetch } = useAuth();
+  const { authFetch, isDemo } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [error, setError] = useState(null);
+  const [fetchError, setFetchError] = useState(null);
+  const [modalError, setModalError] = useState(null);
   const [newProduct, setNewProduct] = useState({
     name: '',
     sku: '',
@@ -20,13 +21,26 @@ export const ProductsManager = () => {
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      setFetchError(null);
+
       const res = await authFetch('/api/v1/products');
-      const json = await res.json();
-      if (json.success) {
-        setProducts(json.data || []);
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || `Failed to fetch products (HTTP ${res.status})`);
       }
+
+      setProducts(json.data || []);
     } catch (err) {
-      console.error('Failed to load products:', err);
+      if (isDemo) {
+        // In demo sandbox, show sample items
+        setProducts([
+          { _id: 'demo-1', name: 'Wireless Earbuds Pro (Sandbox)', sku: 'EAR-PRO', pricing: { costPrice: 2000, retailPrice: 4999 }, stock: 25, category: 'Audio' },
+          { _id: 'demo-2', name: 'Fast Charger 65W (Sandbox)', sku: 'PWR-65W', pricing: { costPrice: 1200, retailPrice: 3299 }, stock: 40, category: 'Power' },
+        ]);
+      } else {
+        setFetchError(`Backend Catalog Error: ${err.message}. Please verify backend API connectivity.`);
+      }
     } finally {
       setLoading(false);
     }
@@ -38,7 +52,26 @@ export const ProductsManager = () => {
 
   const handleCreateProduct = async (e) => {
     e.preventDefault();
-    setError(null);
+    setModalError(null);
+
+    if (isDemo) {
+      const demoProd = {
+        _id: `prod-${Date.now()}`,
+        name: newProduct.name.trim(),
+        sku: newProduct.sku.trim(),
+        pricing: {
+          costPrice: Number(newProduct.costPrice) || 0,
+          retailPrice: Number(newProduct.retailPrice) || 0,
+        },
+        stock: Number(newProduct.stock) || 0,
+        category: newProduct.category,
+      };
+      setProducts((prev) => [demoProd, ...prev]);
+      setShowAddModal(false);
+      setNewProduct({ name: '', sku: '', costPrice: '', retailPrice: '', stock: '', category: 'Electronics' });
+      return;
+    }
+
     try {
       const res = await authFetch('/api/v1/products', {
         method: 'POST',
@@ -54,16 +87,16 @@ export const ProductsManager = () => {
         }),
       });
 
-      const json = await res.json();
-      if (!json.success) {
-        throw new Error(json.error?.message || 'Failed to create product');
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || 'Failed to create product');
       }
 
       setShowAddModal(false);
       setNewProduct({ name: '', sku: '', costPrice: '', retailPrice: '', stock: '', category: 'Electronics' });
       fetchProducts();
     } catch (err) {
-      setError(err.message);
+      setModalError(err.message);
     }
   };
 
@@ -77,7 +110,7 @@ export const ProductsManager = () => {
 
         <button
           onClick={() => {
-            setError(null);
+            setModalError(null);
             setShowAddModal(true);
           }}
           className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow transition-all"
@@ -85,6 +118,21 @@ export const ProductsManager = () => {
           + Add New Product
         </button>
       </div>
+
+      {fetchError && (
+        <div className="mt-4 p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between text-xs text-rose-800">
+          <div className="flex items-center space-x-2">
+            <span>⚠️</span>
+            <span>{fetchError}</span>
+          </div>
+          <button
+            onClick={fetchProducts}
+            className="px-3 py-1 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 mt-4 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
         <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -98,9 +146,13 @@ export const ProductsManager = () => {
 
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2">
           {loading ? (
-            <div className="p-8 text-center text-xs text-slate-400">Loading catalog...</div>
+            <div className="p-12 text-center text-xs text-slate-400">Loading catalog from authoritative backend...</div>
           ) : products.length === 0 ? (
-            <div className="p-12 text-center text-xs text-slate-400">No products added yet.</div>
+            <div className="p-16 text-center text-xs text-slate-400 space-y-2">
+              <span className="text-3xl">📦</span>
+              <p className="font-semibold text-slate-600">No products found in this store catalog.</p>
+              <p className="text-slate-400">Click "+ Add New Product" above to create your first item.</p>
+            </div>
           ) : (
             products.map((p) => (
               <div key={p._id} className="flex items-center justify-between p-3 text-xs">
@@ -132,14 +184,14 @@ export const ProductsManager = () => {
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h3 className="font-bold text-slate-800 text-sm">Add Product</h3>
+              <h3 className="font-bold text-slate-800 text-sm">Add Product to Store</h3>
               <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-600">×</button>
             </div>
 
             <form onSubmit={handleCreateProduct} className="p-6 space-y-3">
-              {error && (
+              {modalError && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold">
-                  {error}
+                  {modalError}
                 </div>
               )}
 
@@ -212,4 +264,3 @@ export const ProductsManager = () => {
     </div>
   );
 };
-

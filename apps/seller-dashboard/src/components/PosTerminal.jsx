@@ -10,10 +10,12 @@ const DEMO_POS_PRODUCTS = [
 ];
 
 export const PosTerminal = () => {
-  const { authFetch } = useAuth();
+  const { authFetch, isDemo } = useAuth();
   const [scanQuery, setScanQuery] = useState('');
   const [cart, setCart] = useState([]);
-  const [activeShift, setActiveShift] = useState({ _id: 'shift-demo-001', cashDrawer: { openingFloat: 5000 } });
+  const [activeShift, setActiveShift] = useState(
+    isDemo ? { _id: 'shift-demo-001', cashDrawer: { openingFloat: 5000 } } : null
+  );
   const [customer, setCustomer] = useState({ name: 'Walk-in Retail Guest', phone: '03000000000' });
   const [paymentSplit, setPaymentSplit] = useState({ cash: 0, card: 0 });
   const [loading, setLoading] = useState(false);
@@ -24,42 +26,50 @@ export const PosTerminal = () => {
 
   // Check active cashier shift on mount
   useEffect(() => {
+    if (isDemo) return;
+
     const fetchShift = async () => {
       try {
-        const res = await authFetch('/api/v1/pos/shifts/current').catch(() => null);
-        if (res && res.ok) {
-          const json = await res.json().catch(() => null);
-          if (json && json.success && json.data) {
-            setActiveShift(json.data);
-          }
+        const res = await authFetch('/api/v1/pos/shifts/current');
+        const json = await res.json().catch(() => null);
+        if (json && json.success && json.data) {
+          setActiveShift(json.data);
+        } else {
+          setActiveShift(null);
         }
       } catch (err) {
-        console.warn('Shift fetch offline:', err);
+        console.warn('Shift fetch error:', err.message);
       }
     };
     fetchShift();
-  }, []);
+  }, [isDemo]);
 
   // Open Shift Drawer
   const handleOpenShift = async () => {
     try {
       setLoading(true);
+      setMessage(null);
+
+      if (isDemo) {
+        setActiveShift({ _id: `shift-${Date.now()}`, cashDrawer: { openingFloat: 5000 } });
+        setMessage({ type: 'success', text: 'Shift opened with Rs. 5,000 cash drawer float (Demo).' });
+        return;
+      }
+
       const res = await authFetch('/api/v1/pos/shifts/open', {
         method: 'POST',
         body: JSON.stringify({ openingFloat: 5000, registerId: 'REG-01' }),
-      }).catch(() => null);
+      });
+      const json = await res.json().catch(() => null);
 
-      if (res && res.ok) {
-        const json = await res.json().catch(() => null);
-        if (json && json.success) {
-          setActiveShift(json.data);
-          setMessage({ type: 'success', text: 'Shift opened with Rs. 5,000 cash drawer float.' });
-          return;
-        }
+      if (json && json.success) {
+        setActiveShift(json.data);
+        setMessage({ type: 'success', text: 'Shift opened with Rs. 5,000 cash drawer float.' });
+      } else {
+        setMessage({ type: 'error', text: json?.error?.message || 'Failed to open shift.' });
       }
-
-      setActiveShift({ _id: `shift-${Date.now()}`, cashDrawer: { openingFloat: 5000 } });
-      setMessage({ type: 'success', text: 'Shift opened with Rs. 5,000 cash drawer float (Demo).' });
+    } catch (err) {
+      setMessage({ type: 'error', text: `Failed to connect to backend: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -73,21 +83,23 @@ export const PosTerminal = () => {
 
     try {
       setLoading(true);
+      setMessage(null);
       let product = null;
 
-      const res = await authFetch(`/api/v1/pos/products/lookup?code=${encodeURIComponent(query)}`).catch(() => null);
-      if (res && res.ok) {
-        const json = await res.json().catch(() => null);
-        if (json && json.success && json.data) {
-          product = json.data;
-        }
-      }
-
-      // Fallback local lookup
-      if (!product) {
+      if (isDemo) {
         product = DEMO_POS_PRODUCTS.find(
           (p) => p.sku.toLowerCase() === query.toLowerCase() || p.name.toLowerCase().includes(query.toLowerCase())
         );
+      } else {
+        const res = await authFetch(`/api/v1/pos/products/lookup?code=${encodeURIComponent(query)}`);
+        const json = await res.json().catch(() => null);
+
+        if (json && json.success && json.data) {
+          product = json.data;
+        } else {
+          setMessage({ type: 'error', text: json?.error?.message || `Item "${query}" not found in catalog.` });
+          return;
+        }
       }
 
       if (product) {
@@ -116,10 +128,10 @@ export const PosTerminal = () => {
         setScanQuery('');
         setMessage({ type: 'success', text: `Added "${product.name}" to cart.` });
       } else {
-        setMessage({ type: 'error', text: `Item "${query}" not found in catalog. Try scanning "EAR-PRO-BLK" or "PWR-GAN-65W".` });
+        setMessage({ type: 'error', text: `Item "${query}" not found in catalog.` });
       }
     } catch (err) {
-      setMessage({ type: 'error', text: err.message });
+      setMessage({ type: 'error', text: `Lookup error: ${err.message}` });
     } finally {
       setLoading(false);
       barcodeInputRef.current?.focus();
@@ -143,6 +155,20 @@ export const PosTerminal = () => {
 
     try {
       setLoading(true);
+      setMessage(null);
+
+      if (isDemo) {
+        const demoOrderNum = `POS-${Date.now().toString().slice(-6)}-DEMO`;
+        setLastReceipt({
+          orderNumber: demoOrderNum,
+          financials: { grandTotal: cartTotal },
+          items: [...cart],
+        });
+        setCart([]);
+        setMessage({ type: 'success', text: `Sale completed (Demo)! Receipt Order #${demoOrderNum}` });
+        return;
+      }
+
       const res = await authFetch('/api/v1/pos/sales', {
         method: 'POST',
         body: JSON.stringify({
@@ -155,27 +181,17 @@ export const PosTerminal = () => {
           ],
           idempotencyKey: `POS-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         }),
-      }).catch(() => null);
+      });
 
-      if (res && res.ok) {
-        const json = await res.json().catch(() => null);
-        if (json && json.success) {
-          setLastReceipt(json.data.order);
-          setCart([]);
-          setMessage({ type: 'success', text: `Sale completed! Order: ${json.data.order.orderNumber}` });
-          return;
-        }
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || 'Sale execution failed');
       }
 
-      // Demo receipt generation
-      const demoOrderNum = `POS-${Date.now().toString().slice(-6)}`;
-      setLastReceipt({
-        orderNumber: demoOrderNum,
-        financials: { grandTotal: cartTotal },
-        items: [...cart],
-      });
+      setLastReceipt(json.data.order);
       setCart([]);
-      setMessage({ type: 'success', text: `Sale completed! Receipt Order #${demoOrderNum}` });
+      setMessage({ type: 'success', text: `Sale completed! Order: ${json.data.order.orderNumber}` });
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
     } finally {
@@ -191,7 +207,7 @@ export const PosTerminal = () => {
         <div className="flex items-center justify-between pb-4 border-b border-slate-200">
           <div>
             <h2 className="text-xl font-extrabold text-slate-800">Retail Point-of-Sale</h2>
-            <p className="text-xs text-slate-500">Fast barcode lookup with atomic stock deduction</p>
+            <p className="text-xs text-slate-500">Fast barcode lookup with authoritative backend stock deduction</p>
           </div>
 
           <div>
@@ -204,7 +220,7 @@ export const PosTerminal = () => {
               <button
                 onClick={handleOpenShift}
                 disabled={loading}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow transition-all"
+                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold shadow transition-all disabled:opacity-50"
               >
                 + Open Cashier Shift
               </button>
@@ -224,29 +240,29 @@ export const PosTerminal = () => {
           </div>
         )}
 
-        {/* Quick Barcode Scan Shortcuts */}
-        <div className="mt-3 flex items-center space-x-2 text-xs text-slate-500">
-          <span className="font-semibold text-slate-700">Quick Barcodes:</span>
-          {DEMO_POS_PRODUCTS.map((p) => (
-            <button
-              key={p.sku}
-              type="button"
-              onClick={() => {
-                setScanQuery(p.sku);
-              }}
-              className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg hover:border-sky-500 hover:text-sky-600 font-mono text-[11px] shadow-sm transition-all"
-            >
-              {p.sku}
-            </button>
-          ))}
-        </div>
+        {/* Quick Barcode Scan Shortcuts in Sandbox */}
+        {isDemo && (
+          <div className="mt-3 flex items-center space-x-2 text-xs text-slate-500">
+            <span className="font-semibold text-slate-700">Sandbox Quick Barcodes:</span>
+            {DEMO_POS_PRODUCTS.map((p) => (
+              <button
+                key={p.sku}
+                type="button"
+                onClick={() => setScanQuery(p.sku)}
+                className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg hover:border-sky-500 hover:text-sky-600 font-mono text-[11px] shadow-sm transition-all"
+              >
+                {p.sku}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Barcode Scanner Input */}
         <form onSubmit={handleScan} className="mt-3 flex space-x-3">
           <input
             ref={barcodeInputRef}
             type="text"
-            placeholder="Scan barcode or type SKU (e.g. EAR-PRO-BLK) and press Enter..."
+            placeholder="Scan product barcode or enter SKU and press Enter..."
             value={scanQuery}
             onChange={(e) => setScanQuery(e.target.value)}
             disabled={loading}
@@ -256,7 +272,7 @@ export const PosTerminal = () => {
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md transition-all"
+            className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-md transition-all disabled:opacity-50"
           >
             Lookup Item
           </button>
@@ -274,7 +290,7 @@ export const PosTerminal = () => {
 
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2">
             {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2">
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 py-12">
                 <span className="text-3xl">🛒</span>
                 <p className="text-xs font-medium">Ready to scan products for checkout.</p>
               </div>

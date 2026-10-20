@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const DEFAULT_THEME = {
+const DEFAULT_SANDBOX_THEME = {
   branding: {
     primaryColor: '#059669',
     secondaryColor: '#0f172a',
@@ -38,61 +38,68 @@ const DEFAULT_THEME = {
 };
 
 export const ThemeCustomizer = () => {
-  const { authFetch, tenant } = useAuth();
-  const [theme, setTheme] = useState(DEFAULT_THEME);
-  const [loading, setLoading] = useState(false);
+  const { authFetch, tenant, isDemo } = useAuth();
+  const [theme, setTheme] = useState(isDemo ? DEFAULT_SANDBOX_THEME : null);
+  const [loading, setLoading] = useState(!isDemo);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
-  const [activeSubTab, setActiveSubTab] = useState('colors'); // 'colors' | 'homepage' | 'footer' | 'features'
+  const [fetchError, setFetchError] = useState(null);
+  const [activeSubTab, setActiveSubTab] = useState('colors');
 
-  // Load existing theme configuration
-  useEffect(() => {
-    const fetchTheme = async () => {
-      try {
-        setLoading(true);
-        const res = await authFetch('/api/v1/storefront/theme').catch(() => null);
-        if (res && res.ok) {
-          const json = await res.json().catch(() => null);
-          if (json && json.success && json.data) {
-            setTheme(json.data);
-          }
-        }
-      } catch (err) {
-        console.warn('Backend unavailable, using default theme customizer settings:', err);
-      } finally {
-        setLoading(false);
+  const fetchTheme = async () => {
+    if (isDemo) return;
+
+    try {
+      setLoading(true);
+      setFetchError(null);
+      const res = await authFetch('/api/v1/storefront/theme');
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || `Failed to fetch theme configuration (HTTP ${res.status})`);
       }
-    };
-    fetchTheme();
-  }, []);
 
-  // Save Theme Settings (Colors, Branding, Footer, Features)
+      setTheme(json.data);
+    } catch (err) {
+      setFetchError(`Backend Storefront CMS Error: ${err.message}. Please verify API connectivity.`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTheme();
+  }, [isDemo]);
+
   const handleSaveTheme = async (updates) => {
     try {
       setSaving(true);
       setMessage(null);
 
-      // Apply locally immediately
-      setTheme((prev) => ({
-        ...prev,
-        ...updates,
-        branding: { ...prev.branding, ...updates.branding },
-        topbar: { ...prev.topbar, ...updates.topbar },
-        footer: { ...prev.footer, ...updates.footer },
-      }));
+      if (isDemo) {
+        setTheme((prev) => ({
+          ...prev,
+          ...updates,
+          branding: { ...prev.branding, ...updates.branding },
+          topbar: { ...prev.topbar, ...updates.topbar },
+          footer: { ...prev.footer, ...updates.footer },
+        }));
+        setMessage({ type: 'success', text: 'Store design updated in sandbox mode!' });
+        return;
+      }
 
       const res = await authFetch('/api/v1/storefront/theme', {
         method: 'PUT',
         body: JSON.stringify(updates),
-      }).catch(() => null);
+      });
 
-      if (res && res.ok) {
-        const json = await res.json().catch(() => null);
-        if (json && json.success) {
-          setTheme(json.data);
-        }
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || 'Failed to save theme settings');
       }
 
+      setTheme(json.data);
       setMessage({ type: 'success', text: 'Store design updated in real-time!' });
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
@@ -101,21 +108,27 @@ export const ThemeCustomizer = () => {
     }
   };
 
-  // Publish Draft Homepage Layout
   const handlePublishHomepage = async () => {
     try {
       setSaving(true);
-      const res = await authFetch('/api/v1/storefront/theme/publish', {
-        method: 'POST',
-      }).catch(() => null);
+      setMessage(null);
 
-      if (res && res.ok) {
-        const json = await res.json().catch(() => null);
-        if (json && json.success) {
-          setTheme(json.data.theme);
-        }
+      if (isDemo) {
+        setMessage({ type: 'success', text: 'Draft layout published to sandbox store!' });
+        return;
       }
 
+      const res = await authFetch('/api/v1/storefront/theme/publish', {
+        method: 'POST',
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || 'Failed to publish homepage layout');
+      }
+
+      setTheme(json.data.theme);
       setMessage({ type: 'success', text: 'Draft layout published to live storefront!' });
     } catch (err) {
       setMessage({ type: 'error', text: err.message });
@@ -124,18 +137,23 @@ export const ThemeCustomizer = () => {
     }
   };
 
-  // Toggle Feature Flag Instantly
   const handleToggleFeature = async (featureKey, enabled) => {
     try {
       setTheme((prev) => ({
         ...prev,
-        features: { ...prev.features, [featureKey]: enabled },
+        features: { ...prev?.features, [featureKey]: enabled },
       }));
 
-      await authFetch(`/api/v1/storefront/theme/features/${featureKey}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ enabled }),
-      }).catch(() => null);
+      if (!isDemo) {
+        const res = await authFetch(`/api/v1/storefront/theme/features/${featureKey}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ enabled }),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.success) {
+          throw new Error(json?.error?.message || 'Failed to update feature');
+        }
+      }
 
       setMessage({ type: 'success', text: `Feature "${featureKey}" updated.` });
     } catch (err) {
@@ -145,8 +163,26 @@ export const ThemeCustomizer = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 p-8 text-center text-slate-500">
-        <p className="text-sm font-medium">Loading store customizer...</p>
+      <div className="flex-1 p-12 text-center text-slate-500">
+        <p className="text-sm font-medium">Loading store customizer from authoritative backend...</p>
+      </div>
+    );
+  }
+
+  if (fetchError && !theme) {
+    return (
+      <div className="flex-1 p-8 bg-slate-100 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-2xl border border-rose-200 shadow-sm max-w-md w-full space-y-3 text-center">
+          <span className="text-3xl">⚠️</span>
+          <h3 className="text-base font-bold text-slate-800">Store Customizer Unavailable</h3>
+          <p className="text-xs text-rose-700">{fetchError}</p>
+          <button
+            onClick={fetchTheme}
+            className="w-full py-2 bg-sky-600 text-white rounded-xl text-xs font-bold hover:bg-sky-700"
+          >
+            Retry Loading Theme
+          </button>
+        </div>
       </div>
     );
   }

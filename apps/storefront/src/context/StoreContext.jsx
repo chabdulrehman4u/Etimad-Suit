@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { injectTenantThemeVariables } from '@etimad/ui';
+import { injectTenantThemeVariables, getApiBaseUrl } from '@etimad/ui';
 
 const StoreContext = createContext(null);
 
-const DEFAULT_STORE_CONFIG = {
+const DEMO_STORE_CONFIG = {
   tenant: {
-    _id: 'default-flagship',
-    name: 'Etimad Mart',
+    _id: 'demo-flagship-001',
+    name: 'Etimad Mart (Demo Sandbox)',
     slug: 'etimadmart',
     description: 'Premier Multi-Channel Retail & Wholesale Electronics Store',
     logoUrl: '',
@@ -25,7 +25,7 @@ const DEFAULT_STORE_CONFIG = {
     fontFamilyBody: 'Inter, sans-serif',
     announcementBar: {
       enabled: true,
-      text: '🎉 Welcome to Etimad Mart! Free nationwide delivery on orders over Rs. 3,000',
+      text: '🎉 Welcome to Etimad Mart Sandbox! Free nationwide delivery on orders over Rs. 3,000',
       linkUrl: '#',
       backgroundColor: '#059669',
       textColor: '#ffffff',
@@ -73,7 +73,7 @@ const DEFAULT_STORE_CONFIG = {
       },
     ],
   },
-  featureFlags: {
+  features: {
     enableCartDrawer: true,
     enableWhatsappButton: true,
     enableReviews: true,
@@ -82,7 +82,7 @@ const DEFAULT_STORE_CONFIG = {
   },
 };
 
-const DEFAULT_PRODUCTS = [
+const DEMO_PRODUCTS = [
   {
     _id: 'prod-demo-1',
     name: 'Wireless Noise Cancelling Earbuds Pro',
@@ -128,14 +128,18 @@ const DEFAULT_PRODUCTS = [
 export const StoreProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [storeConfig, setStoreConfig] = useState(DEFAULT_STORE_CONFIG);
-  const [products, setProducts] = useState(DEFAULT_PRODUCTS);
+  const [storeConfig, setStoreConfig] = useState(null);
+  const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [orderTrackingNumber, setOrderTrackingNumber] = useState('');
+  const [isDemoMode, setIsDemoMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('demo') === 'true' || localStorage.getItem('etimad_store_demo') === 'true';
+  });
 
-  // Determine active tenant slug (from URL param or window location)
   const getTenantIdentifier = () => {
     if (typeof window === 'undefined') return 'etimadmart';
     const params = new URLSearchParams(window.location.search);
@@ -152,52 +156,84 @@ export const StoreProvider = ({ children }) => {
 
   const tenantSlug = getTenantIdentifier();
 
-  // Load Storefront Configuration & Products
-  useEffect(() => {
-    const fetchStoreData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const enableDemoMode = () => {
+    setIsDemoMode(true);
+    localStorage.setItem('etimad_store_demo', 'true');
+    setStoreConfig(DEMO_STORE_CONFIG);
+    setProducts(DEMO_PRODUCTS);
+    injectTenantThemeVariables(DEMO_STORE_CONFIG.branding);
+    setError(null);
+  };
 
-        // Apply default branding immediately for instantaneous paint
-        injectTenantThemeVariables(DEFAULT_STORE_CONFIG.branding);
-
-        // 1. Fetch Dynamic Config from backend if available
-        const configRes = await fetch(`/api/v1/storefront/${tenantSlug}/config`).catch(() => null);
-        
-        if (configRes && configRes.ok) {
-          const configJson = await configRes.json().catch(() => null);
-          if (configJson && configJson.success && configJson.data) {
-            setStoreConfig(configJson.data);
-            if (configJson.data.branding) {
-              injectTenantThemeVariables(configJson.data.branding);
-            }
-            if (configJson.data.tenant?.name) {
-              document.title = `${configJson.data.tenant.name} | Official Store`;
-            }
-          }
-        }
-
-        // 2. Fetch Catalog from backend if available
-        const catalogRes = await fetch(`/api/v1/storefront/${tenantSlug}/catalog`).catch(() => null);
-        if (catalogRes && catalogRes.ok) {
-          const catalogJson = await catalogRes.json().catch(() => null);
-          if (catalogJson && catalogJson.success && Array.isArray(catalogJson.data) && catalogJson.data.length > 0) {
-            setProducts(catalogJson.data);
-          }
-        }
-      } catch (err) {
-        console.warn('Backend unavailable, using default store preview:', err.message);
-        // Fall back gracefully to default store configuration
-        setStoreConfig(DEFAULT_STORE_CONFIG);
-        setProducts(DEFAULT_PRODUCTS);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  const disableDemoMode = () => {
+    setIsDemoMode(false);
+    localStorage.removeItem('etimad_store_demo');
     fetchStoreData();
-  }, [tenantSlug]);
+  };
+
+  const fetchStoreData = async () => {
+    if (isDemoMode) {
+      setLoading(false);
+      setStoreConfig(DEMO_STORE_CONFIG);
+      setProducts(DEMO_PRODUCTS);
+      injectTenantThemeVariables(DEMO_STORE_CONFIG.branding);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const apiBase = getApiBaseUrl();
+
+      // 1. Fetch Dynamic Config from authoritative backend
+      let configRes;
+      try {
+        configRes = await fetch(`${apiBase}/api/v1/storefront/${tenantSlug}/config`);
+      } catch (netErr) {
+        throw new Error(
+          `Unable to reach the Etimad Suit backend API at ${apiBase || 'current host'}. Please verify backend server is running and accessible.`
+        );
+      }
+
+      const configJson = await configRes.json().catch(() => null);
+
+      if (!configRes.ok || !configJson?.success) {
+        throw new Error(
+          configJson?.error?.message ||
+            `Storefront configuration failed to load (HTTP ${configRes.status}).`
+        );
+      }
+
+      const config = configJson.data;
+      setStoreConfig(config);
+
+      if (config.branding) {
+        injectTenantThemeVariables(config.branding);
+      }
+      if (config.tenant?.name) {
+        document.title = `${config.tenant.name} | Official Online Store`;
+      }
+
+      // 2. Fetch Catalog from authoritative backend
+      const catalogRes = await fetch(`${apiBase}/api/v1/storefront/${tenantSlug}/catalog`);
+      const catalogJson = await catalogRes.json().catch(() => null);
+
+      if (catalogRes.ok && catalogJson?.success && Array.isArray(catalogJson.data)) {
+        setProducts(catalogJson.data);
+      } else {
+        setProducts([]);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStoreData();
+  }, [tenantSlug, isDemoMode]);
 
   // Cart operations
   const addToCart = (product, quantity = 1) => {
@@ -252,6 +288,10 @@ export const StoreProvider = ({ children }) => {
         products,
         loading,
         error,
+        isDemoMode,
+        enableDemoMode,
+        disableDemoMode,
+        retryConnection: fetchStoreData,
         cart,
         cartCount,
         cartSubtotal,

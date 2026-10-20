@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
-import { getOrderStatusBadge, formatPKR } from '@etimad/ui';
+import { getOrderStatusBadge, formatPKR, getApiBaseUrl } from '@etimad/ui';
 
 export const OrderTrackingModal = ({ isOpen, onClose }) => {
   const { tenantSlug, orderTrackingNumber, setOrderTrackingNumber, storeConfig } = useStore();
@@ -27,7 +27,8 @@ export const OrderTrackingModal = ({ isOpen, onClose }) => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/v1/storefront/${tenantSlug}/orders/${num.trim()}/track`);
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/v1/storefront/${tenantSlug}/orders/${num.trim()}/track`);
       const json = await res.json();
 
       if (!json.success) {

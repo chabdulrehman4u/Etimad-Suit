@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { validatePakistaniPhone } from '@etimad/shared-validation';
-import { formatPKR } from '@etimad/ui';
+import { formatPKR, getApiBaseUrl } from '@etimad/ui';
 
 export const CheckoutModal = () => {
   const {
@@ -13,6 +13,7 @@ export const CheckoutModal = () => {
     clearCart,
     setOrderTrackingNumber,
     storeConfig,
+    isDemoMode,
   } = useStore();
 
   const [customer, setCustomer] = useState({
@@ -31,44 +32,46 @@ export const CheckoutModal = () => {
 
   const currencySymbol = storeConfig?.tenant?.currencySymbol || 'Rs.';
 
-  // Request authoritative server pricing quote or calculate client-side fallback
+  // Request authoritative server pricing quote
   useEffect(() => {
     if (!isCheckoutOpen || cart.length === 0) return;
 
     const fetchQuote = async () => {
       try {
         setQuoting(true);
-        const res = await fetch(`/api/v1/storefront/${tenantSlug}/cart/quote`, {
+        const apiBase = getApiBaseUrl();
+
+        if (isDemoMode) {
+          const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
+          const shippingFee = subtotal >= 3000 ? 0 : 200;
+          const discountTotal = couponCode.toUpperCase() === 'WELCOME10' ? Math.round(subtotal * 0.1) : 0;
+          const grandTotal = Math.max(0, subtotal + shippingFee - discountTotal);
+
+          setQuote({
+            financials: { subtotal, shippingFee, discountTotal, grandTotal },
+          });
+          return;
+        }
+
+        const res = await fetch(`${apiBase}/api/v1/storefront/${tenantSlug}/cart/quote`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
             couponCode: couponCode || undefined,
           }),
-        }).catch(() => null);
-
-        if (res && res.ok) {
-          const json = await res.json().catch(() => null);
-          if (json && json.success) {
-            setQuote(json.data);
-            return;
-          }
-        }
-
-        // Local fallback calculation if backend not connected
-        const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
-        const shippingFee = subtotal >= 3000 ? 0 : 200;
-        const discountTotal = couponCode.toUpperCase() === 'WELCOME10' ? Math.round(subtotal * 0.1) : 0;
-        const grandTotal = Math.max(0, subtotal + shippingFee - discountTotal);
-
-        setQuote({
-          financials: {
-            subtotal,
-            shippingFee,
-            discountTotal,
-            grandTotal,
-          },
         });
+
+        const json = await res.json().catch(() => null);
+        if (res.ok && json?.success) {
+          setQuote(json.data);
+        } else {
+          // If quote endpoint returned error, calculate fallback preview but flag error
+          const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
+          setQuote({
+            financials: { subtotal, shippingFee: 200, discountTotal: 0, grandTotal: subtotal + 200 },
+          });
+        }
       } catch (err) {
         console.error('Quote error:', err);
       } finally {
@@ -77,7 +80,7 @@ export const CheckoutModal = () => {
     };
 
     fetchQuote();
-  }, [isCheckoutOpen, cart, couponCode, tenantSlug]);
+  }, [isCheckoutOpen, cart, couponCode, tenantSlug, isDemoMode]);
 
   if (!isCheckoutOpen) return null;
 
@@ -94,46 +97,55 @@ export const CheckoutModal = () => {
 
     try {
       setSubmitting(true);
-      const res = await fetch(`/api/v1/storefront/${tenantSlug}/orders`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer: {
-            name: customer.name.trim(),
-            phone: phoneCheck.normalized,
-            shippingAddress: {
-              street: customer.street.trim(),
-              city: customer.city.trim(),
-            },
-          },
-          items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-          payment: { method: paymentMethod },
-          couponCode: couponCode || undefined,
-          idempotencyKey: `CHK-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        }),
-      }).catch(() => null);
+      const apiBase = getApiBaseUrl();
 
-      if (res && res.ok) {
-        const json = await res.json().catch(() => null);
-        if (json && json.success) {
-          setCompletedOrder(json.data);
-          clearCart();
-          return;
-        }
+      if (isDemoMode) {
+        const demoOrderNum = `DEMO-ORD-${Date.now().toString().slice(-6)}`;
+        setCompletedOrder({
+          orderNumber: demoOrderNum,
+          financials: quote?.financials || { grandTotal: cartSubtotal },
+          payment: { method: paymentMethod },
+          customer: {
+            name: customer.name,
+            phone: phoneCheck.normalized,
+            shippingAddress: { city: customer.city },
+          },
+        });
+        clearCart();
+        return;
       }
 
-      // Offline / Demo order placement fallback
-      const generatedOrderNum = `ORD-${Date.now().toString().slice(-6)}-DEMO`;
-      setCompletedOrder({
-        orderNumber: generatedOrderNum,
-        financials: quote?.financials || { grandTotal: cartSubtotal },
-        payment: { method: paymentMethod },
-        customer: {
-          name: customer.name,
-          phone: phoneCheck.normalized,
-          shippingAddress: { city: customer.city },
-        },
-      });
+      let res;
+      try {
+        res = await fetch(`${apiBase}/api/v1/storefront/${tenantSlug}/orders`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customer: {
+              name: customer.name.trim(),
+              phone: phoneCheck.normalized,
+              shippingAddress: {
+                street: customer.street.trim(),
+                city: customer.city.trim(),
+              },
+            },
+            items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+            payment: { method: paymentMethod },
+            couponCode: couponCode || undefined,
+            idempotencyKey: `CHK-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          }),
+        });
+      } catch (netErr) {
+        throw new Error(`Unable to connect to order server at ${apiBase || 'current host'}. Please check backend status.`);
+      }
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || `Order placement failed (HTTP ${res.status}).`);
+      }
+
+      setCompletedOrder(json.data);
       clearCart();
     } catch (err) {
       setError(err.message);
@@ -209,7 +221,7 @@ export const CheckoutModal = () => {
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
             {error && (
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium">
-                {error}
+                ⚠️ {error}
               </div>
             )}
 
@@ -298,7 +310,7 @@ export const CheckoutModal = () => {
               </div>
             </div>
 
-            {/* Order Summary */}
+            {/* Authoritative Order Summary */}
             {quote && (
               <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1.5 border border-slate-200">
                 <div className="flex justify-between text-slate-600">
@@ -331,7 +343,7 @@ export const CheckoutModal = () => {
               disabled={submitting || quoting}
               className="w-full py-3.5 rounded-xl font-bold text-sm shadow-md transition-all active:scale-[0.99] btn-primary disabled:opacity-50"
             >
-              {submitting ? 'Confirming Order...' : 'Place Order'}
+              {submitting ? 'Confirming Order with Server...' : 'Place Order'}
             </button>
           </form>
         )}
