@@ -70,3 +70,4 @@ export const maskSecret = (secret) => {
   const suffix = str.substring(str.length - 4);
   return `${prefix}****${suffix}`;
 };
+

@@ -95,3 +95,4 @@ subscriptionSchema.index({ tenantId: 1, status: 1 });
 
 export const Subscription = mongoose.model('Subscription', subscriptionSchema);
 export default Subscription;
+

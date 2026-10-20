@@ -26,3 +26,4 @@ export const listSupportedCouriers = () => {
 };
 
 export default { getCourierAdapter, listSupportedCouriers };
+

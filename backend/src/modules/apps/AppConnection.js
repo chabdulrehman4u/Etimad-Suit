@@ -76,3 +76,4 @@ appConnectionSchema.methods.getMaskedCredentials = function () {
 
 export const AppConnection = mongoose.model('AppConnection', appConnectionSchema);
 export default AppConnection;
+

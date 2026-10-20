@@ -139,3 +139,4 @@ export const migrateFlagshipTenant = async ({ ownerUserId = null } = {}) => {
 
   return { tenant, plan, owner, subscription };
 };
+

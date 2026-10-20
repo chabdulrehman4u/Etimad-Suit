@@ -23,3 +23,4 @@ router.post('/upgrade', requirePermission(PERMISSIONS.TENANT_BILLING), upgradeTe
 router.post('/cancel', requirePermission(PERMISSIONS.TENANT_BILLING), cancelCurrentSubscription);
 
 export default router;
+

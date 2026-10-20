@@ -102,3 +102,4 @@ const planSchema = new mongoose.Schema(
 
 export const Plan = mongoose.model('Plan', planSchema);
 export default Plan;
+

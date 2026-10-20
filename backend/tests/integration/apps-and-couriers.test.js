@@ -365,3 +365,4 @@ describe('Apps Framework & Verified Courier Adapters Suite', () => {
     expect(bookB.body.error.message).toContain('not found in this store');
   });
 });
+

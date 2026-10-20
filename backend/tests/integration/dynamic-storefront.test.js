@@ -311,5 +311,83 @@ describe('Dynamic Storefront, Colors, Homepage CMS, and Footer Suite', () => {
     expect(configB.body.data.colors.primary).toBe('#06b6d4');
     expect(configB.body.data.footer.copyright).toBe('© 2026 Tech Haven');
   });
+
+  // TEST 6: Public Catalog, Cart Calculation & Online Checkout
+  it('6. Allows public customers to browse catalog, calculate authoritative cart, and place online order', async () => {
+    // 1. Merchant A creates 2 products
+    const prod1Res = await request(app)
+      .post('/api/v1/products')
+      .set('Authorization', `Bearer ${sellerAToken}`)
+      .send({
+        name: 'Embroidered Silk Kurta',
+        sku: 'KUR-01',
+        slug: 'embroidered-silk-kurta',
+        pricing: { costPrice: 2000, retailPrice: 4500 },
+        stock: 20,
+      });
+
+    const prodId1 = prod1Res.body.data._id;
+
+    // 2. Customer browses catalog via public store slug
+    const catalogRes = await request(app)
+      .get(`/api/v1/storefront/${tenantA.slug}/catalog`);
+
+    expect(catalogRes.status).toBe(200);
+    expect(catalogRes.body.data.length).toBe(1);
+    expect(catalogRes.body.data[0].name).toBe('Embroidered Silk Kurta');
+    expect(catalogRes.body.data[0].pricing.retailPrice).toBe(4500);
+
+    // 3. Customer views single product by slug
+    const prodRes = await request(app)
+      .get(`/api/v1/storefront/${tenantA.slug}/catalog/embroidered-silk-kurta`);
+
+    expect(prodRes.status).toBe(200);
+    expect(prodRes.body.data.sku).toBe('KUR-01');
+
+    // 4. Customer requests authoritative cart quote (server calculates line totals)
+    const quoteRes = await request(app)
+      .post(`/api/v1/storefront/${tenantA.slug}/cart/quote`)
+      .send({
+        items: [{ productId: prodId1, quantity: 2 }],
+      });
+
+    expect(quoteRes.status).toBe(200);
+    expect(quoteRes.body.data.financials.subtotal).toBe(9000); // 4500 * 2
+    expect(quoteRes.body.data.financials.shippingFee).toBe(0); // Free delivery over Rs. 3,000
+    expect(quoteRes.body.data.financials.grandTotal).toBe(9000);
+
+    // 5. Customer places online order (COD)
+    const orderRes = await request(app)
+      .post(`/api/v1/storefront/${tenantA.slug}/orders`)
+      .send({
+        customer: {
+          name: 'Ayesha Malik',
+          phone: '03001239999',
+          email: 'ayesha@example.com',
+          shippingAddress: {
+            street: 'House 12, Street 4',
+            city: 'Islamabad',
+          },
+        },
+        items: [{ productId: prodId1, quantity: 2 }],
+        payment: { method: 'cod' },
+      });
+
+    expect(orderRes.status).toBe(201);
+    expect(orderRes.body.data.orderNumber).toBeDefined();
+    expect(orderRes.body.data.channel).toBe('online');
+    expect(orderRes.body.data.financials.grandTotal).toBe(9000);
+
+    const orderNumber = orderRes.body.data.orderNumber;
+
+    // 6. Customer tracks their order publicly
+    const trackRes = await request(app)
+      .get(`/api/v1/storefront/${tenantA.slug}/orders/${orderNumber}/track`);
+
+    expect(trackRes.status).toBe(200);
+    expect(trackRes.body.data.orderNumber).toBe(orderNumber);
+    expect(trackRes.body.data.fulfillmentStatus).toBe('pending');
+    expect(trackRes.body.data.items[0].name).toBe('Embroidered Silk Kurta');
+  });
 });
 
