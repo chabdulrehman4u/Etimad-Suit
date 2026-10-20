@@ -304,3 +304,4 @@ export const CheckoutModal = () => {
     </div>
   );
 };
+

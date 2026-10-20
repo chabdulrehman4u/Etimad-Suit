@@ -186,3 +186,4 @@ export const AppsManager = () => {
     </div>
   );
 };
+

@@ -49,3 +49,4 @@ export const injectTenantThemeVariables = (branding) => {
   if (branding.fontHeading) root.style.setProperty('--font-heading', branding.fontHeading);
   if (branding.fontBody) root.style.setProperty('--font-body', branding.fontBody);
 };
+

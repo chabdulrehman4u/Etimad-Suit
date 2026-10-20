@@ -350,3 +350,4 @@ export const PosTerminal = () => {
     </div>
   );
 };
+

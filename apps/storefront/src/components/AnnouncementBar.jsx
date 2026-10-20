@@ -27,3 +27,4 @@ export const AnnouncementBar = () => {
     </div>
   );
 };
+

@@ -63,3 +63,4 @@ export const SAAS_PLANS = {
   PRO: 'pro',
   ENTERPRISE: 'enterprise',
 };
+
